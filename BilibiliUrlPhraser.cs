@@ -19,14 +19,16 @@ namespace BiliBili
     public class BilibiliUrlPhraser
     {
         public static Dictionary<string, Tuple<string, string, string, int>> urlDic = new Dictionary<string, Tuple<string, string, string, int>>();
-        public string sourceUrl = "";//https://www.bilibili.com/video/BV16Q4y1v7Ao?spm_id_from=333.851.b_62696c695f7265706f72745f646f756761.18
-        public SearchCode[] searchCodes = new SearchCode[] { SearchCode.mp4, SearchCode.dolby, SearchCode.hdr };
+        private string sourceUrl = ""; //https://www.bilibili.com/video/BV16Q4y1v7Ao?spm_id_from=333.851.b_62696c695f7265706f72745f646f756761.18
+        private SearchCode[] searchCodes; //new SearchCode[] { SearchCode.mp4, SearchCode.dolby, SearchCode.hdr };
         private string getInfoUrl = "http://api.bilibili.com/x/web-interface/view";
         private string getVideoUrl = "http://api.bilibili.com/x/player/playurl";
-        // private string getBangumiUrl = "http://api.bilibili.com/pgc/view/web/season";
+        private string getBangumiUrl = "http://api.bilibili.com/pgc/view/web/season";
 
-        public void GetURL(Action<string, string, string, int> output)
+        public void GetURL(string _sourceUrl, SearchCode[] _searchCodes, Action<string, string, string, int> output)
         {
+            sourceUrl = _sourceUrl;
+            searchCodes = _searchCodes;
             if (urlDic.ContainsKey(sourceUrl))
             {
                 if (GetExpireTime(urlDic[sourceUrl].Item1) > GetCurrentUNIXTime())
@@ -95,11 +97,7 @@ namespace BiliBili
 
             if (!string.IsNullOrEmpty(urlData.bvid) && urlData.type == URLType.video)
             {
-                DownloadManager.Instance.DownloadFile(getInfoUrl + "?bvid=" + urlData.bvid, (prog) => { },
-                (msg) =>
-                {
-                    callback?.Invoke(new BiliBiliData() { errorCode = -703, errorMsg = msg });
-                }, (www, webUrl, cachedFilePath) =>
+                SendWebRequest(getInfoUrl + "?bvid=" + urlData.bvid, (www) =>
                 {
                     JSONObject result = new JSONObject(www.downloadHandler.text);
 
@@ -259,13 +257,7 @@ namespace BiliBili
             else
                 typeCode = SearchCode.flv;
 
-            DownloadManager.Instance.DownloadFile(getVideoUrl + "?cid=" + data.videos[page].cid + "&bvid=" + data.bvid + "&fnval=" + searchCodeResult, (prog) => { },
-            (msg) =>
-            {
-                Debug.Log(-703);
-                Debug.Log(msg);
-                result?.Invoke("", "", "", 0);
-            }, (www, webUrl, cachedFilePath) =>
+            SendWebRequest(getVideoUrl + "?cid=" + data.videos[page].cid + "&bvid=" + data.bvid + "&fnval=" + searchCodeResult, (www) =>
             {
                 JSONObject rawData = new JSONObject(www.downloadHandler.text);
 
@@ -385,21 +377,20 @@ namespace BiliBili
                 if (string.IsNullOrEmpty(data.videos[page].video_formats[index].url))
                     continue;
 
-                outputVideoUrl = UnityUtility.UnicodeToString(data.videos[page].video_formats[index].url);
+                outputVideoUrl = ConvertUnicodeToString(data.videos[page].video_formats[index].url);
                 duration = data.videos[page].duration;
                 break;
             }
 
             for (int index = 0; index < data.videos[page].audio_formats.Length; index++)
             {
-                //Makar必須要使用影片當音樂輸出
-                // if (data.videos[page].audio_formats[index].codecid != 0)
-                //     continue;
+                if (data.videos[page].audio_formats[index].codecid != 0)
+                    continue;
 
                 if (string.IsNullOrEmpty(data.videos[page].audio_formats[index].url))
                     continue;
 
-                outputAudioUrl = UnityUtility.UnicodeToString(data.videos[page].audio_formats[index].url);
+                outputAudioUrl = ConvertUnicodeToString(data.videos[page].audio_formats[index].url);
                 break;
             }
 
@@ -440,11 +431,7 @@ namespace BiliBili
 
             if (!string.IsNullOrEmpty(urlData.bvid) && urlData.type == URLType.video)
             {
-                DownloadManager.Instance.DownloadFile(getInfoUrl + "?bvid=" + urlData.bvid, (prog) => { },
-                (msg) =>
-                {
-                    callback?.Invoke("");
-                }, (www, webUrl, cachedFilePath) =>
+                SendWebRequest(getInfoUrl + "?bvid=" + urlData.bvid,(www) =>
                 {
                     JSONObject result = new JSONObject(www.downloadHandler.text);
 
