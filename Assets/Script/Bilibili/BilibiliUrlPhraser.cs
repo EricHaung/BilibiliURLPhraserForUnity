@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using UnityEngine;
-using UnityToolbox;
+using Newtonsoft.Json.Linq;
 
 namespace BiliBili
 {
@@ -23,7 +23,14 @@ namespace BiliBili
         private SearchCode[] searchCodes; //new SearchCode[] { SearchCode.mp4, SearchCode.dolby, SearchCode.hdr };
         private string getInfoUrl = "http://api.bilibili.com/x/web-interface/view";
         private string getVideoUrl = "http://api.bilibili.com/x/player/playurl";
-        private string getBangumiUrl = "http://api.bilibili.com/pgc/view/web/season";
+        // private string getBangumiUrl = "http://api.bilibili.com/pgc/view/web/season";
+        private ILoader loader;
+
+
+        public BilibiliUrlPhraser(ILoader _loader)
+        {
+            loader = _loader;
+        }
 
         public void GetURL(string _sourceUrl, SearchCode[] _searchCodes, Action<string, string, string, int> output)
         {
@@ -97,16 +104,19 @@ namespace BiliBili
 
             if (!string.IsNullOrEmpty(urlData.bvid) && urlData.type == URLType.video)
             {
-                SendWebRequest(getInfoUrl + "?bvid=" + urlData.bvid, (www) =>
+                loader.SendWebRequest(getInfoUrl + "?bvid=" + urlData.bvid,
+                (progressing) => { },
+                (errorMsg) => { },
+                (content) =>
                 {
-                    JSONObject result = new JSONObject(www.downloadHandler.text);
+                    JObject result = JObject.Parse(content);
 
-                    if ((int)(result.GetField("code").i) == 0)
-                        callback?.Invoke(RawVideoInfoDataPhraser(result.GetField("data")));
+                    if ((int)(result["code"]) == 0)
+                        callback?.Invoke(RawVideoInfoDataPhraser((JObject)result["data"]));
                     else
-                        callback?.Invoke(new BiliBiliData() { errorCode = (int)(result.GetField("code").i), errorMsg = result.GetField("message").str });
+                        callback?.Invoke(new BiliBiliData() { errorCode = (int)(result["code"]), errorMsg = result["message"].ToString() });
 
-                }, false);
+                });
             }
             else
                 callback?.Invoke(new BiliBiliData() { errorCode = -702, errorMsg = "網址錯誤" });
@@ -165,47 +175,47 @@ namespace BiliBili
             return new BiliBiliURLData() { type = URLType.none };
         }
 
-        private BiliBiliData RawVideoInfoDataPhraser(JSONObject rawData)
+        private BiliBiliData RawVideoInfoDataPhraser(JObject rawData)
         {
-            JSONObject rightsJSON = rawData.GetField("rights");
+            JObject rightsJSON = (JObject)rawData["rights"];
             Rights m_rights = new Rights()
             {
-                elec = (int)(rightsJSON.GetField("elec").i),
-                download = (int)(rightsJSON.GetField("download").i),
-                movie = (int)(rightsJSON.GetField("movie").i),
-                pay = (int)(rightsJSON.GetField("pay").i),
-                hd5 = (int)(rightsJSON.GetField("hd5").i),
-                no_reprint = (int)(rightsJSON.GetField("no_reprint").i),
-                autoplay = (int)(rightsJSON.GetField("autoplay").i),
-                ugc_pay = (int)(rightsJSON.GetField("ugc_pay").i),
-                is_stein_gate = (int)(rightsJSON.GetField("is_stein_gate").i),
-                is_cooperation = (int)(rightsJSON.GetField("is_cooperation").i),
-                is_360 = (int)(rightsJSON.GetField("is_360").i)
+                elec = (int)(rightsJSON["elec"]),
+                download = (int)(rightsJSON["download"]),
+                movie = (int)(rightsJSON["movie"]),
+                pay = (int)(rightsJSON["pay"]),
+                hd5 = (int)(rightsJSON["hd5"]),
+                no_reprint = (int)(rightsJSON["no_reprint"]),
+                autoplay = (int)(rightsJSON["autoplay"]),
+                ugc_pay = (int)(rightsJSON["ugc_pay"]),
+                is_stein_gate = (int)(rightsJSON["is_stein_gate"]),
+                is_cooperation = (int)(rightsJSON["is_cooperation"]),
+                is_360 = (int)(rightsJSON["is_360"])
             };
 
-            JSONObject stateJSON = rawData.GetField("stat");
+            JObject stateJSON = (JObject)rawData["stat"];
             State m_state = new State()
             {
-                view = (int)(stateJSON.GetField("view").i),
-                danmaku = (int)(stateJSON.GetField("danmaku").i),
-                reply = (int)(stateJSON.GetField("reply").i),
-                favorite = (int)(stateJSON.GetField("favorite").i),
-                coin = (int)(stateJSON.GetField("coin").i),
-                share = (int)(stateJSON.GetField("share").i),
-                now_rank = (int)(stateJSON.GetField("now_rank").i),
-                his_rank = (int)(stateJSON.GetField("his_rank").i),
-                like = (int)(stateJSON.GetField("like").i)
+                view = (int)(stateJSON["view"]),
+                danmaku = (int)(stateJSON["danmaku"]),
+                reply = (int)(stateJSON["reply"]),
+                favorite = (int)(stateJSON["favorite"]),
+                coin = (int)(stateJSON["coin"]),
+                share = (int)(stateJSON["share"]),
+                now_rank = (int)(stateJSON["now_rank"]),
+                his_rank = (int)(stateJSON["his_rank"]),
+                like = (int)(stateJSON["like"])
             };
 
             List<VideoData> videoDatas = new List<VideoData>();
-            List<JSONObject> pagesJSON = rawData.GetField("pages").list;
+            JArray pagesJSON = (JArray)rawData["pages"];
             foreach (var pageJSON in pagesJSON)
             {
                 VideoData videoData = new VideoData()
                 {
-                    order = (int)(pageJSON.GetField("page").i),
-                    cid = (int)(pageJSON.GetField("cid").i),
-                    duration = (int)(pageJSON.GetField("duration").i),
+                    order = (int)(pageJSON["page"]),
+                    cid = (int)(pageJSON["cid"]),
+                    duration = (int)(pageJSON["duration"]),
                     video_formats = new VideoFormat[0],
                     audio_formats = new VideoFormat[0]
                 };
@@ -214,15 +224,15 @@ namespace BiliBili
 
             BiliBiliData data = new BiliBiliData()
             {
-                bvid = rawData.GetField("bvid").str,
-                avid = (int)(rawData.GetField("aid").i),
-                copyright = (Copyright)(int)(rawData.GetField("copyright").i),
-                coverImg = rawData.GetField("pic").str,
-                title = rawData.GetField("title").str,
-                description = rawData.GetField("desc_v2").list == null ? null : rawData.GetField("desc_v2")[0].GetField("raw_text").str,
-                width = (int)rawData.GetField("dimension").GetField("width").i,
-                height = (int)rawData.GetField("dimension").GetField("height").i,
-                rotate = (int)rawData.GetField("dimension").GetField("rotate").i,
+                bvid = rawData["bvid"].ToString(),
+                avid = (int)(rawData["aid"]),
+                copyright = (Copyright)(int)(rawData["copyright"]),
+                coverImg = rawData["pic"].ToString(),
+                title = rawData["title"].ToString(),
+                description = rawData["desc_v2"] == null ? null : rawData["desc_v2"][0]["raw_text"].ToString(),
+                width = (int)rawData["dimension"]["width"],
+                height = (int)rawData["dimension"]["height"],
+                rotate = (int)rawData["dimension"]["rotate"],
                 rights = m_rights,
                 videos = videoDatas.ToArray(),
                 state = m_state
@@ -257,31 +267,34 @@ namespace BiliBili
             else
                 typeCode = SearchCode.flv;
 
-            SendWebRequest(getVideoUrl + "?cid=" + data.videos[page].cid + "&bvid=" + data.bvid + "&fnval=" + searchCodeResult, (www) =>
+            loader.SendWebRequest(getVideoUrl + "?cid=" + data.videos[page].cid + "&bvid=" + data.bvid + "&fnval=" + searchCodeResult,
+            (progressing) => { },
+            (errorMsg) => { },
+            (content) =>
             {
-                JSONObject rawData = new JSONObject(www.downloadHandler.text);
+                JObject rawData = JObject.Parse(content);
 
-                if ((int)(rawData.GetField("code").i) == 0)
+                if ((int)(rawData["code"]) == 0)
                 {
-                    data = RawURLDataFormat(data, page, typeCode, rawData.GetField("data"));
+                    data = RawURLDataFormat(data, page, typeCode, (JObject)rawData["data"]);
                     Tuple<string, string, string, int> outputURLs = VideoFliter(data, page, typeCode);
                     result.Invoke(outputURLs.Item1, outputURLs.Item2, outputURLs.Item3, outputURLs.Item4);
                 }
                 else
                 {
-                    Debug.Log((int)rawData.GetField("code").i);
-                    Debug.Log(rawData.GetField("message").str);
+                    Debug.Log((int)rawData["code"]);
+                    Debug.Log(rawData["message"]);
                     result?.Invoke("", "", "", 0);
                 }
-            }, false);
+            });
         }
 
-        private BiliBiliData RawURLDataFormat(BiliBiliData data, int page, SearchCode code, JSONObject rawData)
+        private BiliBiliData RawURLDataFormat(BiliBiliData data, int page, SearchCode code, JObject rawData)
         {
             switch (code)
             {
                 case SearchCode.mp4:
-                    List<JSONObject> mp4JSON = rawData.GetField("durl").list;
+                    JArray mp4JSON = (JArray)rawData["durl"];
                     foreach (var video in data.videos)
                     {
                         if (video.order == page + 1)
@@ -292,8 +305,8 @@ namespace BiliBili
                             {
                                 VideoFormat videoFormat = new VideoFormat()
                                 {
-                                    id = (FormatCode)(int)(videoJSON.GetField("order").i),
-                                    url = videoJSON.GetField("url").str,
+                                    id = (FormatCode)(int)(videoJSON["order"]),
+                                    url = videoJSON["url"].ToString(),
                                     mimeType = "mp4",
                                     codecs = "AVC(H264)",
                                     width = data.width,
@@ -309,7 +322,7 @@ namespace BiliBili
                     }
                     break;
                 case SearchCode.dash:
-                    List<JSONObject> dashVideosJSON = rawData.GetField("dash").GetField("video").list;
+                    JArray dashVideosJSON = (JArray)rawData["dash"]["video"];
                     foreach (var video in data.videos)
                     {
                         if (video.order == page + 1)
@@ -320,14 +333,14 @@ namespace BiliBili
                             {
                                 VideoFormat videoFormat = new VideoFormat()
                                 {
-                                    id = (FormatCode)(int)(videoJSON.GetField("id").i),
-                                    url = videoJSON.GetField("baseUrl").str,
-                                    mimeType = videoJSON.GetField("mimeType").str,
-                                    codecs = videoJSON.GetField("codecs").str,
-                                    width = (int)videoJSON.GetField("width").i,
-                                    height = (int)videoJSON.GetField("height").i,
-                                    frameRate = (int)videoJSON.GetField("frameRate").i,
-                                    codecid = (int)videoJSON.GetField("codecid").i
+                                    id = (FormatCode)(int)(videoJSON["id"]),
+                                    url = videoJSON["baseUrl"].ToString(),
+                                    mimeType = videoJSON["mimeType"].ToString(),
+                                    codecs = videoJSON["codecs"].ToString(),
+                                    width = (int)videoJSON["width"],
+                                    height = (int)videoJSON["height"],
+                                    frameRate = (int)videoJSON["frameRate"],
+                                    codecid = (int)videoJSON["codecid"]
                                 };
                                 videoFormats.Add(videoFormat);
                             }
@@ -335,7 +348,7 @@ namespace BiliBili
                         }
                     }
 
-                    List<JSONObject> dashAudiosJSON = rawData.GetField("dash").GetField("audio").list;
+                    JArray dashAudiosJSON = (JArray)rawData["dash"]["audio"];
                     foreach (var video in data.videos)
                     {
                         if (video.order == page + 1)
@@ -345,14 +358,14 @@ namespace BiliBili
                             {
                                 VideoFormat audioFormat = new VideoFormat()
                                 {
-                                    id = (FormatCode)(int)(audioJSON.GetField("id").i),
-                                    url = audioJSON.GetField("baseUrl").str,
-                                    mimeType = audioJSON.GetField("mimeType").str,
-                                    codecs = audioJSON.GetField("codecs").str,
-                                    width = (int)audioJSON.GetField("width").i,
-                                    height = (int)audioJSON.GetField("height").i,
-                                    frameRate = (int)audioJSON.GetField("frameRate").i,
-                                    codecid = (int)audioJSON.GetField("codecid").i
+                                    id = (FormatCode)(int)(audioJSON["id"]),
+                                    url = audioJSON["baseUrl"].ToString(),
+                                    mimeType = audioJSON["mimeType"].ToString(),
+                                    codecs = audioJSON["codecs"].ToString(),
+                                    width = (int)audioJSON["width"],
+                                    height = (int)audioJSON["height"],
+                                    frameRate = (int)audioJSON["frameRate"],
+                                    codecid = (int)audioJSON["codecid"]
                                 };
                                 audioFormats.Add(audioFormat);
                             }
@@ -377,7 +390,7 @@ namespace BiliBili
                 if (string.IsNullOrEmpty(data.videos[page].video_formats[index].url))
                     continue;
 
-                outputVideoUrl = ConvertUnicodeToString(data.videos[page].video_formats[index].url);
+                outputVideoUrl = UnityHelper.ConvertUnicodeToString(data.videos[page].video_formats[index].url);
                 duration = data.videos[page].duration;
                 break;
             }
@@ -390,7 +403,7 @@ namespace BiliBili
                 if (string.IsNullOrEmpty(data.videos[page].audio_formats[index].url))
                     continue;
 
-                outputAudioUrl = ConvertUnicodeToString(data.videos[page].audio_formats[index].url);
+                outputAudioUrl = UnityHelper.ConvertUnicodeToString(data.videos[page].audio_formats[index].url);
                 break;
             }
 
@@ -431,16 +444,19 @@ namespace BiliBili
 
             if (!string.IsNullOrEmpty(urlData.bvid) && urlData.type == URLType.video)
             {
-                SendWebRequest(getInfoUrl + "?bvid=" + urlData.bvid,(www) =>
-                {
-                    JSONObject result = new JSONObject(www.downloadHandler.text);
+                loader.SendWebRequest(getInfoUrl + "?bvid=" + urlData.bvid,
+                (progressing) => { },
+                (errorMsg) => { },
+                (content) =>
+                 {
+                     JObject result = JObject.Parse(content);
 
-                    if ((int)(result.GetField("code").i) == 0)
-                        callback?.Invoke(result.GetField("data").GetField("pic").str);
-                    else
-                        callback?.Invoke("");
+                     if ((int)(result["code"]) == 0)
+                         callback?.Invoke(result["data"]["pic"].ToString());
+                     else
+                         callback?.Invoke("");
 
-                }, false);
+                 });
             }
             else
                 callback?.Invoke("");
