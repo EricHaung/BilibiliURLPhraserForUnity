@@ -306,7 +306,7 @@ namespace BiliBili
                                 VideoFormat videoFormat = new VideoFormat()
                                 {
                                     id = (FormatCode)(int)(videoJSON["order"]),
-                                    url = videoJSON["url"].ToString(),
+                                    url = videoJSON["url"].ToString().Replace("\\u0026", "&"),
                                     mimeType = "mp4",
                                     codecs = "AVC(H264)",
                                     width = data.width,
@@ -334,7 +334,7 @@ namespace BiliBili
                                 VideoFormat videoFormat = new VideoFormat()
                                 {
                                     id = (FormatCode)(int)(videoJSON["id"]),
-                                    url = videoJSON["baseUrl"].ToString(),
+                                    url = videoJSON["baseUrl"].ToString().Replace("\\u0026", "&"),
                                     mimeType = videoJSON["mimeType"].ToString(),
                                     codecs = videoJSON["codecs"].ToString(),
                                     width = (int)videoJSON["width"],
@@ -359,7 +359,7 @@ namespace BiliBili
                                 VideoFormat audioFormat = new VideoFormat()
                                 {
                                     id = (FormatCode)(int)(audioJSON["id"]),
-                                    url = audioJSON["baseUrl"].ToString(),
+                                    url = audioJSON["baseUrl"].ToString().Replace("\\u0026", "&"),
                                     mimeType = audioJSON["mimeType"].ToString(),
                                     codecs = audioJSON["codecs"].ToString(),
                                     width = (int)audioJSON["width"],
